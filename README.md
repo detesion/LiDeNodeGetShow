@@ -1,42 +1,59 @@
-# NodeGet-StatusShow
+# LiDe NodeGet Show
 
-一个服务器状态展示页，NodeGet的公开探针页面
+一个基于 NodeGet 的公开探针前端主题，支持节点状态表格、健康地图、多维榜单、详情页图表和主题分发导入。
 
-欢迎开发者基于此版本进行定制，也欢迎 pr 到本项目
+<a href="https://dash.nodeget.com/#/dashboard/theme-management?add=https://nodeget.org">
+  <img src="https://dash.nodeget.com/deploy-button.png" alt="deploy button" width="230px" />
+</a>
 
-## 开发
+## 预览
 
-```bash
-npm i
-npm run dev
-```
+在线预览：
 
-## 一键部署
+<https://nodeget.org>
 
-此为官方最推荐的部署方式，方便升级至新版
+主题分发地址：
 
-Fork 本仓库，配置 `NODEGET_CONFIG` 环境变量，然后在 Cloudflare Pages / Vercel / EdgeOne 等静态托管平台构建部署。
+<https://nodeget.org/>
 
-要更新版本则就在 fork 的 GitHub 仓库点击 sync 就行，可以轻松且可控的升级
+## 关于 NodeGet
 
-## NodeGet 规范主题
+NodeGet 是一个节点监控与探针展示产品。
 
-本主题按 NodeGet 规范主题结构构建，编译结果会包含控制面板导入和主题分发需要的关键文件：
+- 官网：<https://nodeget.com/>
+- 后端仓库：[NodeSeekDev/NodeGet](https://github.com/NodeSeekDev/NodeGet)
+- 原始前端主题：[NodeSeekDev/NodeGet-StatusShow](https://github.com/NodeSeekDev/NodeGet-StatusShow)
+
+本仓库只是一个 NodeGet 前端主题，修改自 [NodeSeekDev/NodeGet-StatusShow](https://github.com/NodeSeekDev/NodeGet-StatusShow)，不包含 NodeGet 后端服务。
+
+## 安装
+
+推荐通过 NodeGet 控制面板导入主题分发地址：
 
 ```text
-nodeget-theme.json
-nodeget-theme-files.json
-config.json
-custom.css
-custom.js
-download.html
+https://nodeget.org/
 ```
 
-`nodeget-theme.json` 用于主题元信息和表单化配置，`nodeget-theme-files.json` 用于控制面板自动读取主题文件，`config.json` 用于保存用户偏好和 Visitor Token。
+也可以直接点击上方 Deploy to NodeGet 按钮。
 
-构建后默认生成无 token 的 `config.json` 模板，避免把本地测试 token 写入分发包。需要部署真实站点时，用 `NODEGET_CONFIG` 或构建后手动替换 `dist/config.json`。
+完整主题安装教程请参考官方文档：
 
-官方写法示例见 `public/config.example.json`：
+<https://nodeget.com/guide/theme/quick-install.html>
+
+## 主题特性
+
+- 默认表格视图，适合节点较多时快速浏览
+- 健康状态地图，显示节点覆盖地区和访问者位置
+- 多维榜单，包含在线时长、网络质量、流量消耗、硬件负载
+- 详情页图表，支持资源、Ping、TCP Ping、流量等维度
+- 支持 NodeGet 规范主题分发
+- 支持 `nodeget-theme.json` 表单化配置
+- 支持 `nodeget-theme-files.json` 文件清单
+- 支持 Cloudflare Pages 静态部署
+
+## 主题配置
+
+本主题支持 NodeGet 规范配置：
 
 ```json
 {
@@ -55,62 +72,37 @@ download.html
 }
 ```
 
-本项目原有字段仍然可用：
+示例文件见：
 
-```json
-{
-  "theme_config": {
-    "site_name": "NodeGet Status",
-    "site_logo": "https://example.com/logo.png",
-    "footer": "Powered by NodeGet"
-  },
-  "site_tokens": [
-    {
-      "name": "master server node 1",
-      "backend_url": "wss://HOST1",
-      "token": "Your Visitor Token"
-    }
-  ]
-}
+```text
+public/config.example.json
 ```
 
-`site_tokens[].websocket` 和 `site_tokens[].backend_url` 等价；`site_log` 和 `site_logo` 等价；`theme_repo` 和 `repository` 等价。
-
-## 编译结果下载
-
-本项目 build 完是纯静态站， 丢哪都行
-
-执行 `npm run build` 后会在 `dist/` 下生成完整静态文件和版本 ZIP，方便把静态文件部署到其他地方。
-
-如果部署为主题分发站点，也可以打开 `/download.html` 从当前站点按 `nodeget-theme-files.json` 文件清单打包下载。
-
-## 环境变量
-推荐使用官方规范的 `NODEGET_CONFIG` 在构建后生成 `dist/config.json`：
+## 开发
 
 ```bash
-NODEGET_CONFIG='{"user_preferences":{"site_name":"狼牙的探针","site_logo":"https://example.com/logo.png","footer":"Powered by NodeGet"},"site_tokens":[{"name":"master-1","backend_url":"wss://m1.example.com","token":"abc123"}]}'
+npm install
+npm run dev
 ```
 
-如果没有 `NODEGET_CONFIG`，构建脚本会生成 `nodeget-theme.json` 中 `user_preferences_form` 默认值对应的无 token 配置模板。
+构建：
 
-> 环境变量是 **build 时** 注入的 改完之后必须重新部署一次才会生效 在面板里光改不重新跑 build 是没用的
-
-兼容旧的 `SITE_*` 写法：
-
-```
-SITE_NAME=狼牙的探针
-SITE_LOGO=https://example.com/logo.png
-SITE_FOOTER=Powered by NodeGet
-SITE_1=name="master-1",backend_url="wss://m1.example.com",token="abc123"
-SITE_2=name="master-2",websocket="wss://m2.example.com",token="xyz789" 
+```bash
+npm run build
 ```
 
-前三个对应 `site_name` / `site_logo` / `footer` 不写就用默认值
+构建结果在：
 
-`SITE_n` 是主控 值用 `key="value"` 拿逗号串起来 支持 `name` / `backend_url` / `websocket` / `token` 字段 值里要塞引号或反斜杠的话用 `\"` 和 `\\` 转义
+```text
+dist/
+```
 
-从 `SITE_1` 开始连续往上数 中间断了就停 所以加新主控接着 `SITE_3` `SITE_4` 就行
+## 说明
 
-一个 `SITE_n` 都没设的话脚本会保留默认无 token 模板。本地 `npm run dev` 仍然读取 `public/config.json`，方便本地调试。
+本仓库仅提供前端主题代码。使用前需要先部署或使用已有的 NodeGet 后端，并在 NodeGet 控制面板中创建 Visitor Token。
 
-可以只有一个 `SITE_1`，不强制 `SITE_2` `SITE_3` 之类的
+Token 会随静态前端配置下发给浏览器，这是 NodeGet 静态主题的正常使用方式。请使用权限受限的 Visitor Token，不要使用管理权限 Token。
+
+## License
+
+GPL-3.0
