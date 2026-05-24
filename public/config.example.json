@@ -1,0 +1,14 @@
+{
+  "user_preferences": {
+    "site_name": "NodeGet Status",
+    "site_logo": "https://example.com/logo.png",
+    "footer": "Powered by NodeGet"
+  },
+  "site_tokens": [
+    {
+      "name": "master server node 1",
+      "backend_url": "wss://HOST1",
+      "token": "Your Visitor Token"
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "name": "LiDe NodeGet Show",
+  "short": "LiDeNodeGetShow",
+  "description": "A NodeGet public monitoring dashboard theme with table view, rankings, maps, and detail charts.",
+  "author": "LiDe",
+  "repository": "https://gitssh.aioos.org/lide/NodeGetShow",
+  "dist_page": "https://nodeget.org/",
+  "user_preferences_form": {
+    "version": "0.0.1",
+    "items": [
+      {
+        "key": "site_name",
+        "name": "站点标题",
+        "type": "string",
+        "default": "NodeGet Status",
+        "help": "输入公开探针页面标题"
+      },
+      {
+        "key": "site_logo",
+        "name": "站点图标",
+        "type": "string",
+        "default": "",
+        "help": "输入站点图标链接，留空使用默认图标"
+      },
+      {
+        "key": "footer",
+        "name": "页脚文本",
+        "type": "string",
+        "default": "Powered by NodeGet",
+        "help": "输入页脚显示文本"
+      }
+    ]
+  },
+  "version": "1.0.3",
+  "license": ""
+}

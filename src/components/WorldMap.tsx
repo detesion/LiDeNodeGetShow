@@ -1,0 +1,467 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
+import * as echarts from 'echarts'
+import { AlertTriangle, ChevronRight, X } from 'lucide-react'
+import { Card } from './ui/card'
+import { Flag } from './Flag'
+import { StatusDot } from './StatusDot'
+import { displayName, distroLogo } from '../utils/derive'
+import { cn } from '../utils/cn'
+import { backendRegionCode } from '../utils/region'
+import type { Node } from '../types'
+import type { VisitorInfo } from '../hooks/useVisitorInfo'
+
+const MAP_W = 900
+const MAP_H = 520
+const TINY_DEG = 2
+const GEO_URL = `${import.meta.env.BASE_URL}world.geo.json`
+
+const HEAT = [
+  [134, 239, 172],
+  [34, 197, 94],
+  [21, 128, 61],
+]
+
+const cnameMap = new Map<string, string>()
+const knownA2 = new Set<string>()
+const tinyCenter = new Map<string, [number, number]>()
+let mapPromise: Promise<void> | null = null
+
+interface CountryEntry {
+  online: number
+  offline: number
+  nodes: Node[]
+}
+
+interface Props {
+  nodes: Node[]
+  onOpen?: (uuid: string) => void
+  compact?: boolean
+  className?: string
+  visitor?: VisitorInfo | null
+}
+
+function ringBbox(ring: number[][]) {
+  let minLng = Infinity
+  let maxLng = -Infinity
+  let minLat = Infinity
+  let maxLat = -Infinity
+  for (const [lng, lat] of ring) {
+    if (lng < minLng) minLng = lng
+    if (lng > maxLng) maxLng = lng
+    if (lat < minLat) minLat = lat
+    if (lat > maxLat) maxLat = lat
+  }
+  return { minLng, maxLng, minLat, maxLat, w: maxLng - minLng, h: maxLat - minLat }
+}
+
+function tinyMeta(geometry: any): { center: [number, number]; size: number } | null {
+  if (!geometry?.coordinates) return null
+  const polygons = geometry.type === 'MultiPolygon' ? geometry.coordinates : [geometry.coordinates]
+  let best: ReturnType<typeof ringBbox> | null = null
+  let bestArea = -1
+  for (const poly of polygons) {
+    const outer = poly[0]
+    if (!outer) continue
+    const bb = ringBbox(outer)
+    const area = bb.w * bb.h
+    if (area > bestArea) {
+      bestArea = area
+      best = bb
+    }
+  }
+  if (!best) return null
+  return {
+    center: [(best.minLng + best.maxLng) / 2, (best.minLat + best.maxLat) / 2],
+    size: Math.max(best.w, best.h),
+  }
+}
+
+function heatColor(t: number) {
+  const x = Math.min(1, Math.max(0, t))
+  const seg = x >= 0.5 ? 1 : 0
+  const f = (x - seg * 0.5) * 2
+  const a = HEAT[seg]
+  const b = HEAT[seg + 1]
+  const r = Math.round(a[0] + (b[0] - a[0]) * f)
+  const g = Math.round(a[1] + (b[1] - a[1]) * f)
+  const c = Math.round(a[2] + (b[2] - a[2]) * f)
+  return `rgb(${r},${g},${c})`
+}
+
+function countryColor(entry: CountryEntry) {
+  const total = entry.online + entry.offline
+  const rate = total ? entry.online / total : 0
+  if (rate >= 0.999) return '#22c55e'
+  if (rate >= 0.67) return '#84cc16'
+  if (rate > 0) return '#f59e0b'
+  return '#ef4444'
+}
+
+function ensureMap() {
+  if (!mapPromise) {
+    mapPromise = fetch(GEO_URL)
+      .then(r => r.json())
+      .then(geo => {
+        for (const f of geo.features ?? []) {
+          const a2 = f.properties?.name
+          if (!a2) continue
+          knownA2.add(a2)
+          if (f.properties?.cname) cnameMap.set(a2, f.properties.cname)
+          const m = tinyMeta(f.geometry)
+          if (m && m.size < TINY_DEG) tinyCenter.set(a2, m.center)
+        }
+        echarts.registerMap('world', geo)
+      })
+      .catch(err => {
+        mapPromise = null
+        throw err
+      })
+  }
+  return mapPromise
+}
+
+export function WorldMap({ nodes, onOpen, compact = false, className, visitor }: Props) {
+  const [ready, setReady] = useState(false)
+  const [error, setError] = useState<Error | null>(null)
+  const [mapVersion, setMapVersion] = useState(0)
+  const [pickedA2, setPickedA2] = useState<string | null>(null)
+  const [renderA2, setRenderA2] = useState<string | null>(null)
+  const wrapRef = useRef<HTMLDivElement | null>(null)
+  const chartRef = useRef<echarts.ECharts | null>(null)
+  const lastGeoRef = useRef<{ byCountry: Map<string, CountryEntry>; total: number }>({
+    byCountry: new Map(),
+    total: 0,
+  })
+
+  useEffect(() => {
+    let cancelled = false
+    ensureMap()
+      .then(() => {
+        if (!cancelled) {
+          setReady(true)
+          setMapVersion(v => v + 1)
+        }
+      })
+      .catch(err => {
+        if (!cancelled) setError(err instanceof Error ? err : new Error(String(err)))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (pickedA2) {
+      setRenderA2(pickedA2)
+    } else if (renderA2) {
+      const t = window.setTimeout(() => setRenderA2(null), 160)
+      return () => clearTimeout(t)
+    }
+  }, [pickedA2, renderA2])
+
+  const { byCountry, total } = useMemo(() => {
+    const map = new Map<string, CountryEntry>()
+    let total = 0
+    for (const n of nodes) {
+      const a2 = backendRegionCode(n)
+      if (!a2 || !/^[A-Z]{2}$/.test(a2)) continue
+      total++
+      const e = map.get(a2) || { online: 0, offline: 0, nodes: [] }
+      if (n.online) e.online++
+      else e.offline++
+      e.nodes.push(n)
+      map.set(a2, e)
+    }
+    return { byCountry: map, total }
+  }, [nodes])
+
+  if (total > 0) {
+    lastGeoRef.current = { byCountry, total }
+  }
+
+  const displayByCountry = total > 0 ? byCountry : lastGeoRef.current.byCountry
+  const displayTotal = total > 0 ? total : lastGeoRef.current.total
+
+  const dataSig = useMemo(
+    () =>
+      [...displayByCountry.entries()]
+        .map(([k, v]) => `${k}:${v.online}/${v.offline}`)
+        .sort()
+        .join(','),
+    [displayByCountry],
+  )
+  const visitorSig = visitor?.lat != null && visitor?.lng != null
+    ? `${visitor.lat},${visitor.lng},${visitor.ips?.join('|') || visitor.ip}`
+    : ''
+
+  const liveRef = useRef({ byCountry, onOpen })
+  useEffect(() => {
+    liveRef.current = { byCountry: displayByCountry, onOpen }
+  })
+
+  const option = useMemo(() => buildOption(displayByCountry, visitor), [dataSig, visitorSig, mapVersion])
+
+  useEffect(() => {
+    if (!ready || !wrapRef.current) return
+    if (!chartRef.current) {
+      chartRef.current = echarts.init(wrapRef.current)
+      chartRef.current.on('click', (p: any) => {
+        const cur = liveRef.current
+        const e = cur.byCountry.get(p.name)
+        if (!e) return
+        if (e.nodes.length === 1) cur.onOpen?.(e.nodes[0].uuid)
+        else setPickedA2(p.name)
+      })
+    }
+    chartRef.current.setOption(option, false)
+  }, [ready, option])
+
+  useEffect(() => {
+    if (!ready || !chartRef.current) return
+    const ro = new ResizeObserver(() => chartRef.current?.resize())
+    if (wrapRef.current) ro.observe(wrapRef.current)
+    return () => ro.disconnect()
+  }, [ready])
+
+  useEffect(() => {
+    return () => {
+      chartRef.current?.dispose()
+      chartRef.current = null
+    }
+  }, [])
+
+  const renderEntry = renderA2 ? displayByCountry.get(renderA2) ?? null : null
+
+  const body = (
+    <>
+      {!compact && (
+        <div className="flex items-center mb-3 px-1">
+          <div className="text-sm font-semibold text-foreground/90">地理位置</div>
+        </div>
+      )}
+
+      <div
+        className={cn(
+          'relative w-full overflow-hidden rounded-md border border-border/60 bg-[hsl(220_15%_8%)]',
+          compact && 'h-full rounded-none border-0',
+          className,
+        )}
+        style={{ aspectRatio: `${MAP_W} / ${MAP_H}` }}
+      >
+        <div ref={wrapRef} className="absolute inset-0" />
+
+        {error && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center text-sm text-white/80">
+            <AlertTriangle className="h-5 w-5 text-amber-400" />
+            <div>地图加载失败</div>
+            <div className="text-xs text-white/50 break-all">{error.message}</div>
+          </div>
+        )}
+
+        {!error && ready && displayTotal === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center text-sm text-white/55 pointer-events-none">
+            没有节点设置过国家代码
+          </div>
+        )}
+
+        {renderEntry && renderA2 && (
+          <NodePopover
+            a2={renderA2}
+            entry={renderEntry}
+            open={pickedA2 === renderA2}
+            onPick={uuid => {
+              setPickedA2(null)
+              onOpen?.(uuid)
+            }}
+            onClose={() => setPickedA2(null)}
+          />
+        )}
+
+        <div className="absolute bottom-3 right-4 z-10 font-mono text-sm font-semibold tracking-wider text-white/85 pointer-events-none uppercase">
+          {displayTotal} nodes
+        </div>
+      </div>
+    </>
+  )
+
+  if (compact) return body
+  return <Card className="p-3 sm:p-4">{body}</Card>
+}
+
+export function preloadWorldMap() {
+  return ensureMap()
+}
+
+function buildOption(byCountry: Map<string, CountryEntry>, visitor?: VisitorInfo | null) {
+  const entries = [...byCountry.entries()].filter(([a2]) => knownA2.has(a2))
+  const data = entries.map(([a2, e]) => ({
+    name: a2,
+    value: e.online + e.offline,
+    itemStyle: {
+      areaColor: countryColor(e),
+      borderColor: 'rgba(15,23,42,0.55)',
+      borderWidth: 0.5,
+    },
+  }))
+  const max = data.reduce((m, d) => Math.max(m, d.value), 0)
+  const tinyMarkers = entries
+    .map(([a2, e]) => {
+      const c = tinyCenter.get(a2)
+      if (!c) return null
+      const v = e.online + e.offline
+      const t = max > 0 ? v / max : 0
+      return {
+        name: a2,
+        coord: c,
+        value: v,
+        symbolSize: 6 + Math.min(8, Math.log2(v + 1) * 3),
+        itemStyle: {
+          color: e.online > 0 ? heatColor(0.35 + 0.65 * t) : '#ef4444',
+          borderColor: 'rgba(20,22,28,0.85)',
+          borderWidth: 0.8,
+          shadowBlur: 8,
+          shadowColor: e.online > 0 ? 'rgba(34,197,94,0.45)' : 'rgba(239,68,68,0.45)',
+        },
+      }
+    })
+    .filter((x): x is NonNullable<typeof x> => x != null)
+  const visitorMarker =
+    visitor?.lat != null && visitor?.lng != null
+      ? [
+          {
+            name: 'visitor',
+            coord: [visitor.lng, visitor.lat],
+            value: 1,
+            symbol: 'pin',
+            symbolSize: 34,
+            label: { show: false },
+            itemStyle: {
+              color: '#f59e0b',
+              borderColor: 'rgba(15,23,42,0.85)',
+              borderWidth: 1,
+              shadowBlur: 14,
+              shadowColor: 'rgba(245,158,11,0.65)',
+            },
+          },
+        ]
+      : []
+
+  return {
+    backgroundColor: 'transparent',
+    tooltip: {
+      trigger: 'item' as const,
+      backgroundColor: 'rgba(20,22,28,0.94)',
+      borderColor: 'rgba(148,163,184,0.3)',
+      borderWidth: 1,
+      padding: [6, 10] as [number, number],
+      textStyle: { color: '#e5e7eb', fontSize: 12 },
+      formatter: (p: any) => {
+        const a2 = p.name
+        const cname = cnameMap.get(a2)
+        const head = cname ? `${cname} <span style="color:#94a3b8">${a2}</span>` : a2
+        const e = byCountry.get(a2)
+        if (!e) return `<b>${head}</b><br/><span style="color:#94a3b8">无节点</span>`
+        const offline = e.offline
+          ? ` <span style="color:#94a3b8">· ${e.offline} 离线</span>`
+          : ''
+        return `<b>${head}</b><br/>${e.online + e.offline} 节点 <span style="color:#34d399">· ${e.online} 在线</span>${offline}`
+      },
+    },
+    series: [
+      {
+        type: 'map' as const,
+        map: 'world',
+        roam: false,
+        zoom: 1.15,
+        layoutCenter: ['50%', '50%'] as [string, string],
+        layoutSize: '100%',
+        selectedMode: false,
+        itemStyle: {
+          areaColor: 'rgba(148,163,184,0.14)',
+          borderColor: 'rgba(148,163,184,0.28)',
+          borderWidth: 0.4,
+        },
+        emphasis: {
+          label: { show: false },
+          itemStyle: { areaColor: '#22c55e' },
+        },
+        label: { show: false },
+        data,
+        markPoint: {
+          symbol: 'circle',
+          label: { show: false },
+          emphasis: { label: { show: false }, scale: 1.3 },
+          data: [...tinyMarkers, ...visitorMarker],
+        },
+      },
+    ],
+  }
+}
+
+function NodePopover({
+  a2,
+  entry,
+  open,
+  onPick,
+  onClose,
+}: {
+  a2: string
+  entry: CountryEntry
+  open: boolean
+  onPick: (uuid: string) => void
+  onClose: () => void
+}) {
+  const cname = cnameMap.get(a2) || a2
+  return (
+    <div
+      data-state={open ? 'open' : 'closed'}
+      className="absolute right-3 top-3 z-20 w-64 rounded-lg border border-border bg-popover text-popover-foreground shadow-xl overflow-hidden origin-top-right duration-150 fill-mode-forwards data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95"
+      onClick={e => e.stopPropagation()}
+      onMouseDown={e => e.stopPropagation()}
+    >
+      <div key={a2} className="animate-in fade-in-0 duration-100 fill-mode-forwards">
+        <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border/70">
+          <Flag code={a2} className="shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold truncate leading-tight">{cname}</div>
+            <div className="text-[11px] text-muted-foreground font-mono mt-0.5">
+              <span className="text-emerald-500">{entry.online} 在线</span>
+              {entry.offline > 0 && <span className="ml-2">{entry.offline} 离线</span>}
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="关闭"
+            className="-mr-1 h-6 w-6 inline-flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-accent shrink-0"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+        <div className="max-h-72 overflow-auto py-1">
+          {entry.nodes.map(n => {
+            const logo = distroLogo(n)
+            return (
+              <button
+                key={n.uuid}
+                onClick={() => onPick(n.uuid)}
+                className="group w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-accent text-left transition-colors"
+              >
+                <StatusDot online={n.online} className="w-1.5 h-1.5 ring-1" />
+                {logo && (
+                  <img
+                    src={logo}
+                    alt=""
+                    className="w-3.5 h-3.5 shrink-0 object-contain opacity-80"
+                    loading="lazy"
+                  />
+                )}
+                <span className="truncate flex-1 text-foreground/90">{displayName(n)}</span>
+                <ChevronRight className="h-3 w-3 text-muted-foreground/40 shrink-0 transition-transform group-hover:translate-x-0.5 group-hover:text-muted-foreground" />
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
