@@ -119,12 +119,10 @@ export function DashboardOverview({ nodes, backendCount, errorCount, mapSlot, vi
           </div>
         </Card>
 
-        <Card className="overflow-hidden bg-white text-slate-950 shadow-[0_18px_48px_rgba(15,23,42,0.14)] dark:bg-slate-950 dark:text-slate-50 dark:shadow-none">
+        <Card className="overflow-hidden bg-black/35 text-slate-50 shadow-none">
           <div className="relative min-h-[360px]">
-            <div className="absolute inset-0 bg-slate-100 dark:bg-[hsl(220_15%_8%)]">
+            <div className="absolute inset-0 bg-transparent">
               {mapSlot}
-              <div className="absolute inset-0 bg-gradient-to-t from-white via-white/58 to-white/18 dark:from-background dark:via-background/40 dark:to-background/10" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_18%,rgba(59,130,246,0.12),transparent_34%),radial-gradient(circle_at_20%_22%,rgba(16,185,129,0.10),transparent_32%)] dark:hidden" />
             </div>
             <div className="relative z-[1] flex h-full min-h-[360px] flex-col p-3">
               <div className="min-h-[210px] flex flex-col justify-between">
