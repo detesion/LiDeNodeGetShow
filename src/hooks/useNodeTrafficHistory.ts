@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { dynamicSummaryAvg } from '../api/methods'
+import { dynamicSummaryQuery } from '../api/methods'
 import type { BackendPool } from '../api/pool'
 import type { DynamicSummary, Node } from '../types'
 import type { TimeWindowKey } from '../utils/rankings'
@@ -22,12 +22,20 @@ const WINDOW_MS: Record<TimeWindowKey, number> = {
   '30d': 30 * 24 * 60 * 60 * 1000,
 }
 
-const POINTS: Record<TimeWindowKey, number> = {
+const BUCKETS: Record<TimeWindowKey, number> = {
   '1h': 36,
   '6h': 48,
   '12h': 48,
   '24h': 48,
   '30d': 60,
+}
+
+const TOLERANCE_MS: Record<TimeWindowKey, number> = {
+  '1h': 30 * 1000,
+  '6h': 3 * 60 * 1000,
+  '12h': 5 * 60 * 1000,
+  '24h': 15 * 60 * 1000,
+  '30d': 6 * 60 * 60 * 1000,
 }
 
 const REFRESH_MS: Record<TimeWindowKey, number> = {
@@ -43,7 +51,7 @@ function normalizeTs(ts: number) {
 }
 
 function toPoint(row: DynamicSummary): TrafficHistoryPoint | null {
-  if (row.receive_speed == null && row.transmit_speed == null) return null
+  if (row.total_received == null && row.total_transmitted == null) return null
   return {
     t: normalizeTs(row.timestamp),
     netIn: row.receive_speed ?? 0,
@@ -53,11 +61,59 @@ function toPoint(row: DynamicSummary): TrafficHistoryPoint | null {
   }
 }
 
-function clean(rows: DynamicSummary[] | undefined) {
-  return (rows ?? [])
+function clean(rows: Array<DynamicSummary | null>) {
+  return rows
     .map(toPoint)
     .filter((row): row is TrafficHistoryPoint => row != null)
     .sort((a, b) => a.t - b.t)
+}
+
+function sampleTimes(window: TimeWindowKey, now: number) {
+  const from = now - WINDOW_MS[window]
+  const buckets = BUCKETS[window]
+  const times: number[] = []
+  for (let index = 0; index <= buckets; index += 1) {
+    times.push(from + ((now - from) * index) / buckets)
+  }
+  return times
+}
+
+function nearestRow(rows: DynamicSummary[] | undefined, target: number) {
+  if (!rows?.length) return null
+  let best = rows[0]
+  for (const row of rows) {
+    if (Math.abs(normalizeTs(row.timestamp) - target) < Math.abs(normalizeTs(best.timestamp) - target)) {
+      best = row
+    }
+  }
+  return best
+}
+
+async function fetchBoundarySample(
+  entry: BackendPool['entries'][number],
+  uuid: string,
+  target: number,
+  window: TimeWindowKey,
+) {
+  try {
+    return nearestRow(
+      await dynamicSummaryQuery(
+        entry.client,
+        {
+          fields: ['total_received', 'total_transmitted'],
+          condition: [
+            { uuid },
+            { timestamp_from_to: [target - TOLERANCE_MS[window], target + TOLERANCE_MS[window]] },
+            { limit: 5 },
+          ],
+        },
+        QUERY_TIMEOUT_MS,
+      ),
+      target,
+    )
+  } catch {
+    return null
+  }
 }
 
 export function useNodeTrafficHistory(
@@ -85,16 +141,10 @@ export function useNodeTrafficHistory(
       setLoading(true)
 
       try {
-        const rows = await dynamicSummaryAvg(
-          entry.client,
-          {
-            fields: ['receive_speed', 'transmit_speed'],
-            uuid: node.uuid,
-            timestamp_from: now - WINDOW_MS[window],
-            timestamp_to: now,
-            points: POINTS[window],
-          },
-          QUERY_TIMEOUT_MS,
+        const rows = await Promise.all(
+          sampleTimes(window, now).map(target =>
+            fetchBoundarySample(entry, node.uuid, target, window),
+          ),
         )
 
         if (!cancelled) setData(clean(rows))

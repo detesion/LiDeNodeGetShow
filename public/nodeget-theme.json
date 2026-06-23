@@ -2,7 +2,7 @@
   "name": "Sunrise NodeGet Show",
   "short": "SunriseNodeGetShow",
   "description": "A NodeGet public monitoring dashboard theme with table view, rankings, maps, and detail charts.",
-  "author": "LiDe",
+  "author": "Sunrise",
   "repository": "https://gitssh.aioos.org/lide/NodeGetShow",
   "dist_page": "https://nodeget.org/",
   "user_preferences_form": {
@@ -10,24 +10,24 @@
     "items": [
       {
         "key": "site_name",
-        "name": "站点标题",
+        "name": "Site title",
         "type": "string",
         "default": "NodeGet Status",
-        "help": "输入公开探针页面标题"
+        "help": "Public dashboard title"
       },
       {
         "key": "site_logo",
-        "name": "站点图标",
+        "name": "Site logo",
         "type": "string",
         "default": "",
-        "help": "输入站点图标链接，留空使用默认图标"
+        "help": "Logo URL. Leave empty to use the default logo."
       },
       {
         "key": "footer",
-        "name": "页脚文本",
+        "name": "Footer text",
         "type": "string",
         "default": "Powered by NodeGet",
-        "help": "输入页脚显示文本"
+        "help": "Footer text displayed at the bottom of the page"
       }
     ]
   },

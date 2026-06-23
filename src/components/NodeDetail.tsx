@@ -1233,19 +1233,20 @@ interface TrafficBucket {
 }
 
 function buildTrafficBuckets(data: TrafficHistoryPoint[], window: TimeWindowKey, large?: boolean): TrafficBucket[] {
+  const sorted = data.slice().sort((a, b) => a.t - b.t)
   const size = bucketMs(window, large)
-  const fallbackIntervalMs = data.length > 1
-    ? Math.max(1, (data[data.length - 1].t - data[0].t) / (data.length - 1))
-    : DETAIL_WINDOW_MS[window] / Math.max(1, data.length || 1)
+  const fallbackIntervalMs = sorted.length > 1
+    ? Math.max(1, (sorted[sorted.length - 1].t - sorted[0].t) / (sorted.length - 1))
+    : DETAIL_WINDOW_MS[window] / Math.max(1, sorted.length || 1)
   const buckets = new Map<
     number,
     { received: number; transmitted: number; inSum: number; outSum: number; samples: number }
   >()
 
-  for (let index = 0; index < data.length; index++) {
-    const point = data[index]
-    const prev = data[index - 1]
-    const next = data[index + 1]
+  for (let index = 0; index < sorted.length; index++) {
+    const point = sorted[index]
+    const prev = sorted[index - 1]
+    const next = sorted[index + 1]
     const t = Math.floor(point.t / size) * size
     const bucket = buckets.get(t) ?? { received: 0, transmitted: 0, inSum: 0, outSum: 0, samples: 0 }
     const intervalMs = prev
@@ -1254,13 +1255,13 @@ function buildTrafficBuckets(data: TrafficHistoryPoint[], window: TimeWindowKey,
         ? next.t - point.t
         : fallbackIntervalMs
     const dt = Math.max(0, intervalMs / 1000)
-    const receivedDelta = point.netIn * dt
-    const transmittedDelta = point.netOut * dt
+    const receivedDelta = trafficDelta(point.totalReceived, prev?.totalReceived, point.netIn, dt)
+    const transmittedDelta = trafficDelta(point.totalTransmitted, prev?.totalTransmitted, point.netOut, dt)
 
     bucket.received += receivedDelta
     bucket.transmitted += transmittedDelta
-    bucket.inSum += point.netIn
-    bucket.outSum += point.netOut
+    bucket.inSum += point.netIn || (dt ? receivedDelta / dt : 0)
+    bucket.outSum += point.netOut || (dt ? transmittedDelta / dt : 0)
     bucket.samples += 1
     buckets.set(t, bucket)
   }
@@ -1275,6 +1276,19 @@ function buildTrafficBuckets(data: TrafficHistoryPoint[], window: TimeWindowKey,
       avgOut: bucket.samples ? bucket.outSum / bucket.samples : 0,
       samples: bucket.samples,
     }))
+}
+
+function trafficDelta(
+  current: number | undefined,
+  previous: number | undefined,
+  speed: number,
+  dt: number,
+) {
+  if (current != null && previous != null) {
+    const delta = current - previous
+    if (delta >= 0 && Number.isFinite(delta)) return delta
+  }
+  return Math.max(0, speed || 0) * dt
 }
 
 function CostSection({ meta }: { meta: NodeMeta }) {
