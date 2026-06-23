@@ -17,6 +17,7 @@ export function NodeCard({ node }: { node: Node }) {
   const logo = distroLogo(node)
   const virt = virtLabel(node)
   const cpu = cpuLabel(node)
+  const totalTraffic = (node.dynamic?.total_received ?? 0) + (node.dynamic?.total_transmitted ?? 0)
 
   return (
       <a href={`#${encodeURIComponent(node.uuid)}`} className="block">
@@ -61,6 +62,7 @@ export function NodeCard({ node }: { node: Node }) {
             <div className="flex items-center gap-3">
               <Stat icon={ArrowDown}>{bytes(u.netIn || 0)}/s</Stat>
               <Stat icon={ArrowUp}>{bytes(u.netOut || 0)}/s</Stat>
+              <span className="ml-auto whitespace-nowrap">总 {bytes(totalTraffic)}</span>
             </div>
             <div className="flex items-center gap-3">
               <Stat icon={Clock}>{uptime(u.uptime)}</Stat>
