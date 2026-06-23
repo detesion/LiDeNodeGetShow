@@ -21,7 +21,7 @@ const WINDOWS: { key: TimeWindowKey; ms: number }[] = [
   { key: '30d', ms: 30 * 24 * 60 * 60 * 1000 },
 ]
 
-const TYPES: LatencyType[] = ['ping', 'tcp_ping']
+const TYPES: LatencyType[] = ['tcp_ping']
 
 function clean(rows: TaskQueryResult[] | undefined, uuids: Set<string>) {
   return (rows ?? []).filter(row => row.uuid && uuids.has(row.uuid))
