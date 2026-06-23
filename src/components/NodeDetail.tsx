@@ -170,9 +170,8 @@ export function NodeDetail({ node, onClose, showSource, pool }: Props) {
   const headerRef = useRef<HTMLDivElement>(null)
   const [stuck, setStuck] = useState(false)
   const [tcpWindow, setTcpWindow] = useState<TimeWindowKey>('1h')
-  const [pingWindow, setPingWindow] = useState<TimeWindowKey>('1h')
   const [trafficWindow, setTrafficWindow] = useState<TimeWindowKey>('1h')
-  const [chartLayer, setChartLayer] = useState<'resource' | 'tcp' | 'ping' | 'traffic' | null>(null)
+  const [chartLayer, setChartLayer] = useState<'resource' | 'tcp' | 'traffic' | null>(null)
   const focusedNode = useFocusedNode(pool, node)
 
   useEffect(() => {
@@ -204,13 +203,6 @@ export function NodeDetail({ node, onClose, showSource, pool }: Props) {
     return () => el.removeEventListener('scroll', onScroll)
   }, [node])
 
-  const { data: pingData, loading: pingLoading } = useNodeLatency(
-    pool,
-    focusedNode?.source ?? null,
-    focusedNode?.uuid ?? null,
-    'ping',
-    pingWindow,
-  )
   const { data: tcpData, loading: tcpLoading } = useNodeLatency(
     pool,
     focusedNode?.source ?? null,
@@ -353,7 +345,7 @@ export function NodeDetail({ node, onClose, showSource, pool }: Props) {
         )}
 
         <LatencyBlock
-          title="TCP Ping"
+          title="TCP"
           rows={tcpData}
           type="tcp_ping"
           loading={tcpLoading}
@@ -362,17 +354,6 @@ export function NodeDetail({ node, onClose, showSource, pool }: Props) {
           onWindowChange={setTcpWindow}
           onOpenLayer={() => setChartLayer('tcp')}
         />
-        <LatencyBlock
-          title="Ping"
-          rows={pingData}
-          type="ping"
-          loading={pingLoading}
-          window={pingWindow}
-          windows={LATENCY_WINDOWS}
-          onWindowChange={setPingWindow}
-          onOpenLayer={() => setChartLayer('ping')}
-        />
-
         <TrafficSection
           node={focusedNode}
           today={todayTraffic}
@@ -403,36 +384,18 @@ export function NodeDetail({ node, onClose, showSource, pool }: Props) {
       )}
       {chartLayer === 'tcp' && (
         <ChartLayer
-          title={`TCP Ping · ${WINDOW_LABELS[tcpWindow]}`}
+          title={`TCP · ${WINDOW_LABELS[tcpWindow]}`}
           subtitle="可切换时间尺度查看完整探测序列"
           onClose={() => setChartLayer(null)}
         >
           <LatencyBlock
-            title="TCP Ping"
+            title="TCP"
             rows={tcpData}
             type="tcp_ping"
             loading={tcpLoading}
             window={tcpWindow}
             windows={LATENCY_WINDOWS}
             onWindowChange={setTcpWindow}
-            large
-          />
-        </ChartLayer>
-      )}
-      {chartLayer === 'ping' && (
-        <ChartLayer
-          title={`Ping · ${WINDOW_LABELS[pingWindow]}`}
-          subtitle="可切换时间尺度查看完整探测序列"
-          onClose={() => setChartLayer(null)}
-        >
-          <LatencyBlock
-            title="Ping"
-            rows={pingData}
-            type="ping"
-            loading={pingLoading}
-            window={pingWindow}
-            windows={LATENCY_WINDOWS}
-            onWindowChange={setPingWindow}
             large
           />
         </ChartLayer>
