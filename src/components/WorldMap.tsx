@@ -242,7 +242,7 @@ export function WorldMap({ nodes, onOpen, compact = false, className, visitor }:
 
       <div
         className={cn(
-          'relative w-full overflow-hidden rounded-md border border-border/60 bg-[hsl(220_15%_8%)]',
+          'relative w-full overflow-hidden rounded-md border border-border/60 bg-transparent',
           compact && 'h-full rounded-none border-0',
           className,
         )}
