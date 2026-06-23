@@ -105,7 +105,7 @@ export function RankingsPanel({
   const [hardwareMetric, setHardwareMetric] = useState<HardwareMetric>('overall')
   const [trafficWindow, setTrafficWindow] = useState<TrafficWindow>('today')
   const [networkWindow, setNetworkWindow] = useState<TimeWindowKey>('1h')
-  const [networkType, setNetworkType] = useState<LatencyType>('ping')
+  const networkType: LatencyType = 'tcp_ping'
   const [networkMetric, setNetworkMetric] = useState<NetworkMetric>('latency')
   const [uptimeSort, setUptimeSort] = useState<SortDirection>('high')
   const [networkSort, setNetworkSort] = useState<SortDirection>('low')
@@ -197,14 +197,6 @@ export function RankingsPanel({
         empty={networkLoading ? '加载网络数据…' : '暂无网络数据'}
         controls={
           <div className="space-y-2">
-            <Segmented
-              items={[
-                { key: 'ping' as const, label: 'Ping' },
-                { key: 'tcp_ping' as const, label: 'TCP' },
-              ]}
-              value={networkType}
-              onChange={v => setNetworkType(v)}
-            />
             <Segmented
               items={[
                 { key: 'latency' as const, label: '延迟' },
@@ -301,14 +293,6 @@ export function RankingsPanel({
         empty={networkLoading ? '加载网络数据…' : '暂无网络数据'}
         controls={
           <div className="space-y-2">
-            <Segmented
-              items={[
-                { key: 'ping' as const, label: 'Ping' },
-                { key: 'tcp_ping' as const, label: 'TCP' },
-              ]}
-              value={networkType}
-              onChange={v => setNetworkType(v)}
-            />
             <Segmented
               items={[
                 { key: 'latency' as const, label: '延迟' },
