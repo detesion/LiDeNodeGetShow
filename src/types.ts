@@ -174,7 +174,7 @@ export type Sort =
   | 'netOut'
   | 'uptime'
 
-export type LatencyType = 'ping' | 'tcp_ping'
+export type LatencyType = 'tcp_ping'
 
 export interface Usage {
   cpu?: number
